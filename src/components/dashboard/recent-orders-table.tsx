@@ -15,19 +15,17 @@ interface RecentOrdersTableProps {
 }
 
 const statusColors: Record<OrderResource['status'], string> = {
-  pending: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-  confirmed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  processing: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-  completed: 'bg-green-500/10 text-green-600 dark:text-green-400',
-  cancelled: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  menunggu_konfirmasi: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+  diproses: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  selesai: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  dibatalkan: 'bg-red-500/10 text-red-600 dark:text-red-400',
 }
 
 const statusLabels: Record<OrderResource['status'], string> = {
-  pending: 'Pending',
-  confirmed: 'Dikonfirmasi',
-  processing: 'Diproses',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
+  menunggu_konfirmasi: 'Menunggu Konfirmasi',
+  diproses: 'Diproses',
+  selesai: 'Selesai',
+  dibatalkan: 'Dibatalkan',
 }
 
 export function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
@@ -64,9 +62,16 @@ export function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
               {orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
-                    #{order.order_number || order.id}
+                    #{order.id}
                   </TableCell>
-                  <TableCell>{order.client_name}</TableCell>
+                  <TableCell>
+                    {order.user?.name || 'N/A'}
+                    {order.user?.company_name && (
+                      <div className="text-sm text-muted-foreground">
+                        {order.user.company_name}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge className={statusColors[order.status]}>
                       {statusLabels[order.status]}

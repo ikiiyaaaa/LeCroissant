@@ -25,27 +25,24 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
 const statusColors: Record<OrderResource['status'], string> = {
-  pending: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-  confirmed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  processing: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-  completed: 'bg-green-500/10 text-green-600 dark:text-green-400',
-  cancelled: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  menunggu_konfirmasi: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+  diproses: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  selesai: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  dibatalkan: 'bg-red-500/10 text-red-600 dark:text-red-400',
 }
 
 const statusLabels: Record<OrderResource['status'], string> = {
-  pending: 'Pending',
-  confirmed: 'Dikonfirmasi',
-  processing: 'Diproses',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
+  menunggu_konfirmasi: 'Menunggu Konfirmasi',
+  diproses: 'Diproses',
+  selesai: 'Selesai',
+  dibatalkan: 'Dibatalkan',
 }
 
 const statusOptions: OrderResource['status'][] = [
-  'pending',
-  'confirmed',
-  'processing',
-  'completed',
-  'cancelled',
+  'menunggu_konfirmasi',
+  'diproses',
+  'selesai',
+  'dibatalkan',
 ]
 
 interface OrderManagementProps {
@@ -54,7 +51,7 @@ interface OrderManagementProps {
 
 export function OrderManagement({ initialOrders }: OrderManagementProps) {
   const router = useRouter()
-  const [orders, setOrders] = React.useState<OrderResource[]>(initialOrders)
+  const [orders, setOrders] = React.useState<OrderResource[]>(initialOrders || [])
 
   const handleStatusChange = async (orderId: number, newStatus: OrderResource['status']) => {
     try {
@@ -119,19 +116,19 @@ export function OrderManagement({ initialOrders }: OrderManagementProps) {
                   orders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
-                        #{order.order_number || order.id}
+                        #{order.id}
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{order.client_name}</div>
-                          {order.client_company && (
+                          <div className="font-medium">{order.user?.name || 'N/A'}</div>
+                          {order.user?.company_name && (
                             <div className="text-sm text-muted-foreground">
-                              {order.client_company}
+                              {order.user.company_name}
                             </div>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{formatDate(order.created_at)}</TableCell>
+                      <TableCell>{formatDate(order.delivery_date)}</TableCell>
                       <TableCell>{formatCurrency(order.total_price)}</TableCell>
                       <TableCell>
                         <Badge className={statusColors[order.status]}>

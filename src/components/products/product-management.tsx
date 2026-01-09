@@ -31,6 +31,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -39,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -47,7 +55,12 @@ const productFormSchema = z.object({
   deskripsi: z.string().min(1, "Deskripsi wajib diisi"),
   harga_grosir: z.number().min(0, "Harga harus lebih dari 0"),
   ketersediaan_stok: z.number().min(0, "Stok harus lebih dari atau sama dengan 0"),
-  gambar: z.string().url("URL gambar tidak valid").optional().or(z.literal("")),
+  gambar: z.union([
+    z.instanceof(File),
+    z.string().url("URL gambar tidak valid"),
+    z.literal("")
+  ]).optional(),
+  status: z.enum(["Aktif", "Non Aktif"]).optional(),
 })
 
 interface ProductManagementProps {
@@ -56,9 +69,10 @@ interface ProductManagementProps {
 
 export function ProductManagement({ initialProducts }: ProductManagementProps) {
   const router = useRouter()
-  const [products, setProducts] = React.useState<ProductResource[]>(initialProducts)
+  const [products, setProducts] = React.useState<ProductResource[]>(initialProducts || [])
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [editingProduct, setEditingProduct] = React.useState<ProductResource | null>(null)
+  const [originalImageUrl, setOriginalImageUrl] = React.useState<string | null>(null)
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productFormSchema),
@@ -68,25 +82,31 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
       harga_grosir: 0,
       ketersediaan_stok: 0,
       gambar: "",
+      status: "Aktif",
     },
   })
 
   React.useEffect(() => {
     if (editingProduct) {
+      const imageUrl = editingProduct.gambar_url || ""
+      setOriginalImageUrl(imageUrl)
       form.reset({
-        nama_produk: editingProduct.nama_produk,
-        deskripsi: editingProduct.deskripsi,
-        harga_grosir: editingProduct.harga_grosir,
-        ketersediaan_stok: editingProduct.ketersediaan_stok,
-        gambar: editingProduct.gambar || "",
+        nama_produk: editingProduct.nama_produk || "",
+        deskripsi: editingProduct.deskripsi || "",
+        harga_grosir: editingProduct.harga_grosir || 0,
+        ketersediaan_stok: editingProduct.ketersediaan_stok || 0,
+        gambar: imageUrl,
+        status: (editingProduct.status as "Aktif" | "Non Aktif") || "Aktif",
       })
     } else {
+      setOriginalImageUrl(null)
       form.reset({
         nama_produk: "",
         deskripsi: "",
         harga_grosir: 0,
         ketersediaan_stok: 0,
         gambar: "",
+        status: "Aktif",
       })
     }
   }, [editingProduct, form])
@@ -94,10 +114,33 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
   const handleSubmit = async (data: ProductFormData) => {
     try {
       if (editingProduct) {
-        const updated = await productsApi.update(editingProduct.id_produk, data)
+        // Jika gambar tidak berubah (masih URL yang sama), jangan kirim field gambar
+        const imageChanged = 
+          data.gambar instanceof File || // File baru diupload
+          (typeof data.gambar === 'string' && data.gambar && data.gambar !== originalImageUrl) // URL diubah
+        
+        const dataToSend = { ...data }
+        // Hapus field gambar jika tidak berubah (masih URL yang sama atau undefined/empty)
+        if (!imageChanged) {
+          // Jika gambar adalah string yang sama dengan original, atau undefined/empty, jangan kirim
+          delete dataToSend.gambar
+        } else {
+          // Pastikan gambar dikirim jika berubah
+          if (data.gambar instanceof File) {
+            dataToSend.gambar = data.gambar
+          } else if (typeof data.gambar === 'string' && data.gambar) {
+            dataToSend.gambar = data.gambar
+          }
+        }
+        
+        const updated = await productsApi.update(editingProduct.id, dataToSend)
         if (updated) {
-          setProducts(products.map(p => p.id_produk === editingProduct.id_produk ? updated : p))
+          setProducts(products.map(p => p.id === editingProduct.id ? updated : p))
           toast.success("Produk berhasil diperbarui")
+          setIsDialogOpen(false)
+          setEditingProduct(null)
+          setOriginalImageUrl(null)
+          router.refresh()
         } else {
           toast.error("Gagal memperbarui produk")
         }
@@ -106,16 +149,18 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
         if (created) {
           setProducts([...products, created])
           toast.success("Produk berhasil ditambahkan")
+          setIsDialogOpen(false)
+          setEditingProduct(null)
+          setOriginalImageUrl(null)
+          router.refresh()
         } else {
           toast.error("Gagal menambahkan produk")
         }
       }
-      setIsDialogOpen(false)
-      setEditingProduct(null)
-      router.refresh()
     } catch (error) {
-      toast.error("Terjadi kesalahan")
-      console.error(error)
+      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan"
+      toast.error(errorMessage)
+      console.error("Error submitting product:", error)
     }
   }
 
@@ -127,7 +172,7 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
     try {
       const success = await productsApi.delete(id)
       if (success) {
-        setProducts(products.filter(p => p.id_produk !== id))
+        setProducts(products.filter(p => p.id !== id))
         toast.success("Produk berhasil dihapus")
         router.refresh()
       } else {
@@ -155,6 +200,32 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(value)
+  }
+
+  const getStatusBadge = (status?: string) => {
+    if (!status) return null
+    
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      Aktif: {
+        label: "Aktif",
+        className: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
+      },
+      "Non Aktif": {
+        label: "Non Aktif",
+        className: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800",
+      },
+    }
+
+    const config = statusConfig[status] || {
+      label: status,
+      className: "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-800",
+    }
+
+    return (
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+    )
   }
 
   return (
@@ -253,15 +324,153 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
                     <FormField
                       control={form.control}
                       name="gambar"
+                      render={({ field }) => {
+                        // Determine initial upload type based on field value
+                        const getInitialUploadType = () => {
+                          if (field.value instanceof File) return 'file'
+                          if (typeof field.value === 'string' && field.value) return 'url'
+                          return 'file' // Default to file upload
+                        }
+                        
+                        const [uploadType, setUploadType] = React.useState<'file' | 'url'>(getInitialUploadType())
+                        const [preview, setPreview] = React.useState<string | null>(null)
+                        const [fileInputKey, setFileInputKey] = React.useState(0)
+                        
+                        React.useEffect(() => {
+                          if (field.value instanceof File) {
+                            const reader = new FileReader()
+                            reader.onloadend = () => {
+                              setPreview(reader.result as string)
+                            }
+                            reader.readAsDataURL(field.value)
+                            setUploadType('file')
+                          } else if (typeof field.value === 'string' && field.value) {
+                            setPreview(field.value)
+                            setUploadType('url')
+                          } else {
+                            setPreview(null)
+                          }
+                        }, [field.value])
+
+                        return (
+                          <FormItem>
+                            <FormLabel>Gambar Produk</FormLabel>
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant={uploadType === 'file' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => {
+                                    setUploadType('file')
+                                    // Reset file input saat beralih ke mode file
+                                    setFileInputKey(prev => prev + 1)
+                                  }}
+                                >
+                                  Upload File
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={uploadType === 'url' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => {
+                                    setUploadType('url')
+                                    // Jika ada file, reset ke URL kosong untuk input URL baru
+                                    // Jika sudah URL, tetap pertahankan
+                                    if (field.value instanceof File) {
+                                      field.onChange('')
+                                      setPreview(null)
+                                    } else if (typeof field.value === 'string' && field.value) {
+                                      // Tetap pertahankan URL yang ada
+                                      setPreview(field.value)
+                                    }
+                                    // Reset file input saat beralih ke mode URL
+                                    setFileInputKey(prev => prev + 1)
+                                  }}
+                                >
+                                  Gunakan URL
+                                </Button>
+                              </div>
+                              
+                              {uploadType === 'file' ? (
+                                <FormControl>
+                                  <Input
+                                    key={`file-input-${fileInputKey}`}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/jpg"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      if (file) {
+                                        // Validate file size (max 2MB)
+                                        if (file.size > 2 * 1024 * 1024) {
+                                          toast.error("Ukuran file maksimal 2MB")
+                                          e.target.value = '' // Reset input
+                                          return
+                                        }
+                                        // Validate file type
+                                        if (!file.type.startsWith('image/')) {
+                                          toast.error("File harus berupa gambar")
+                                          e.target.value = '' // Reset input
+                                          return
+                                        }
+                                        // Set file to form state
+                                        field.onChange(file)
+                                        // Force form to recognize the change
+                                        form.setValue('gambar', file, { shouldDirty: true, shouldValidate: true })
+                                      } else {
+                                        // If no file selected, clear the field
+                                        field.onChange('')
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                              ) : (
+                                <FormControl>
+                                  <Input 
+                                    placeholder="https://example.com/image.jpg" 
+                                    value={typeof field.value === 'string' ? field.value : ''}
+                                    onChange={(e) => field.onChange(e.target.value)}
+                                  />
+                                </FormControl>
+                              )}
+                              
+                              {preview && (
+                                <div className="mt-2">
+                                  <img 
+                                    src={preview} 
+                                    alt="Preview" 
+                                    className="h-32 w-32 object-cover rounded border"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <FormDescription>
+                              {uploadType === 'file' 
+                                ? "Upload gambar produk (maksimal 2MB, format: JPG/PNG)"
+                                : "Masukkan URL gambar produk"}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )
+                      }}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="status"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>URL Gambar</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://example.com/image.jpg" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Masukkan URL gambar produk
-                          </FormDescription>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih status produk" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Aktif">Aktif</SelectItem>
+                              <SelectItem value="Non Aktif">Non Aktif</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -297,31 +506,33 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
                   <TableHead>Deskripsi</TableHead>
                   <TableHead>Harga Grosir</TableHead>
                   <TableHead>Stok</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Belum ada produk
                     </TableCell>
                   </TableRow>
                 ) : (
-                  products.map((product) => (
-                    <TableRow key={product.id_produk}>
+                  products.filter(product => product && product.id).map((product) => (
+                    <TableRow key={product.id}>
                       <TableCell>
                         <Avatar className="h-12 w-12">
-                          <AvatarImage src={product.gambar} alt={product.nama_produk} />
+                          <AvatarImage src={product.gambar_url || product.gambar || ""} alt={product.nama_produk || "Product"} />
                           <AvatarFallback>
-                            {product.nama_produk.substring(0, 2).toUpperCase()}
+                            {(product.nama_produk || "PR").substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                       </TableCell>
-                      <TableCell className="font-medium">{product.nama_produk}</TableCell>
-                      <TableCell className="max-w-xs truncate">{product.deskripsi}</TableCell>
-                      <TableCell>{formatCurrency(product.harga_grosir)}</TableCell>
-                      <TableCell>{product.ketersediaan_stok}</TableCell>
+                      <TableCell className="font-medium">{product.nama_produk || "-"}</TableCell>
+                      <TableCell className="max-w-xs truncate">{product.deskripsi || "-"}</TableCell>
+                      <TableCell>{formatCurrency(product.harga_grosir || 0)}</TableCell>
+                      <TableCell>{product.ketersediaan_stok ?? 0}</TableCell>
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -334,7 +545,7 @@ export function ProductManagement({ initialProducts }: ProductManagementProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(product.id_produk)}
+                            onClick={() => handleDelete(product.id)}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>

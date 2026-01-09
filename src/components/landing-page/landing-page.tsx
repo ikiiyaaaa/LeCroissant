@@ -40,9 +40,9 @@ export function LandingPage() {
                 Delight in flavors crafted with care-made fresh daily to give you the perfect experience, every time.
               </p>
               <div className="flex flex-col gap-4 sm:flex-row sm:justify-start">
-                <Link href="/products">
+                <Link href="/shop">
                   <Button size="lg" className="text-lg bg-orange-500 text-white hover:bg-orange-600">
-                    View Products
+                    View shop
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
@@ -326,7 +326,7 @@ export function LandingPage() {
             </CardHeader>
             <CardContent className="text-center">
               <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <Link href="/products">
+                <Link href="/shop">
                   <Button className="w-full bg-orange-500 text-white hover:bg-orange-600 mt-2" size="lg">
                     View Products
                     <ArrowRight className="ml-2 h-5 w-5" />

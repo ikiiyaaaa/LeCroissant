@@ -11,7 +11,6 @@ import {
   UsersIcon,
   FileTextIcon,
   BarChart3Icon,
-  LogOutIcon,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -26,10 +25,8 @@ import {
   SidebarTrigger,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
 
 // Dynamic import NavUser to prevent hydration mismatch with Radix UI DropdownMenu
-// Radix UI generates random IDs that differ between server and client
 const NavUser = dynamic(
   () => import("@/components/nav-user").then((mod) => ({ default: mod.NavUser })),
   {
@@ -70,7 +67,7 @@ const navItems = [
   },
 ]
 
-export function AppSidebar() {
+export function AdminSidebar() {
   const pathname = usePathname()
 
   return (
