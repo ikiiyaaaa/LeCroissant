@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Windows reserved names
 nul
+
+# frontend folder (separate from root Next.js files)
+/frontend/
